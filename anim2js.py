@@ -2,16 +2,11 @@
 from __future__ import print_function
 import sys
 import json
-#from collections.abc import Mapping, Sequence
-#from collections import OrderedDict
 import ruamel.yaml
 from ruamel.yaml.error import YAMLError
 import uuid
 import optparse
 
-
-#input_file = '../anims/skill004.anim'
-#output_file = './skill004.js'
 yaml = ruamel.yaml.YAML()
 
 
@@ -67,10 +62,16 @@ class AnimationClip:
         self.tracks = []
         self.uuid = str(uuid.uuid1()).upper()
 
+    @staticmethod
+    def get_safe_name(raw_name):
+        valid = set(
+            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
+        return filter(lambda x: x in valid, raw_name)
+
     def parse_unity_anim(self, anim_data):
         self.duration = anim_data['AnimationClip']['m_AnimationClipSettings']['m_StopTime']\
             - anim_data['AnimationClip']['m_AnimationClipSettings']['m_StartTime']
-        self.name = anim_data['AnimationClip']['m_Name']
+        self.name = self.get_safe_name(anim_data['AnimationClip']['m_Name'])
 
         for curve in anim_data['AnimationClip']['m_ScaleCurves']:
             self.tracks.append(ClipTrack().parse_unity_curve(curve, "scale"))
@@ -108,7 +109,8 @@ def load_anim(anim_fn):
 
 def main():
     hstr = '%prog [options] AnimationClipFile1.anim [AnimationClipFile2.anim [...]]'
-    parser = optparse.OptionParser(hstr, description='A simple tool to convert Unity .anim AnimationClips to Three.JS AnimationClips. After converted, you can use them like \"THREE.AnimationClip.parse(anim_AnimationClipName())\" in your JS script.')
+    parser = optparse.OptionParser(
+        hstr, description='A simple tool to convert Unity .anim AnimationClips to Three.JS AnimationClips. After converted, you can use them like \"THREE.AnimationClip.parse(anim_AnimationClipName())\" in your JS script.')
     parser.add_option('-o', '--outfile',
                       action="store", dest="out_file",
                       help="where to save the generated .js", default="animations.js")
@@ -124,13 +126,14 @@ def main():
 
     f = open(options.out_file, 'w')
     for in_file in args:
-        print("[*] Parsing {}".format(in_file))
+        print("[*] Parsing {}".format(in_file), end=' -> ')
         anim_data = load_anim(in_file)
         clip = AnimationClip().parse_unity_anim(anim_data)
 
         f.write("function " + options.prefix + clip.name + "() {return")
         f.write(json.dumps(clip.to_dict()).replace(' ', ''))
         f.write('}\n')
+        print(options.prefix + clip.name + "()")
     f.close()
 
 
